@@ -1,0 +1,14 @@
+localhost {
+    tls internal
+
+    handle_path /api* {
+        # 'backend' is the name of the service in docker-compose.yml
+        reverse_proxy backend:8000
+    }
+
+    handle {
+        root * /srv/frontend/dist
+        file_server
+        try_files {path} /index.html
+    }
+}
