@@ -32,9 +32,6 @@ router = APIRouter(prefix="/users", tags=["Users"])
 # ---------------------------------------------------------
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def register_user(user_in: UserCreate, session: Session = Depends(get_session)):
-    """
-    Registers a new user.
-    """
     new_user = User(
         email=user_in.email,
         full_name=user_in.full_name,
@@ -46,8 +43,18 @@ def register_user(user_in: UserCreate, session: Session = Depends(get_session)):
         session.commit()
         session.refresh(new_user)
         return new_user
+        
     except IntegrityError:
         session.rollback()
+
+        existing_user = session.exec(select(User).where(User.email == user_in.email)).first()
+        
+        if existing_user and not existing_user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This account was previously deactivated. Please use the Recovery page."
+            )
+        
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A user with this email already exists."
@@ -267,11 +274,8 @@ def forgot_password(email: EmailStr = Body(..., embed=True), session: Session = 
     
     if user and user.is_active:
         token = create_password_reset_token(user.id)
-        # In a real app, you'd trigger an email here. 
-        # For development, we'll just print it to the console.
-        print(f"--- PASSWORD RESET LINK FOR {email} ---")
-        print(f"http://localhost:8000/api/users/reset-password?token={token}")
-        print("------------------------------------------")
+        #TODO: create the core module resposible for creating the url with token and sending to the users email
+
 
     return {"message": "If this email is registered, a password reset link has been sent."}
 
