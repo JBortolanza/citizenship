@@ -2,6 +2,8 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie, Body
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
+from pydantic import EmailStr
+
 
 # Import Database Tables
 from app.models.SQLmodels import User, TokenBlocklist
@@ -14,7 +16,8 @@ from app.core.auth import (
     create_refresh_token, 
     decode_token,
     get_current_user,
-    get_admin_user
+    get_admin_user,
+    create_password_reset_token
 )
 from app.core.database import get_session
 
@@ -69,6 +72,12 @@ def login(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password."
+        )
+    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="This account has been deactivated. Please contact support."
         )
 
     # Generate BOTH tokens
@@ -245,3 +254,60 @@ def update_my_profile(
     session.refresh(current_user)
 
     return current_user
+
+# ---------------------------------------------------------
+# POST /users/forgot-password
+# ---------------------------------------------------------
+@router.post("/forgot-password")
+def forgot_password(email: EmailStr = Body(..., embed=True), session: Session = Depends(get_session)):
+    """
+    This endpoint returns a single use password reset token embedded in a URL to be used in the reset-password route.
+    """
+    user = session.exec(select(User).where(User.email == email)).first()
+    
+    if user and user.is_active:
+        token = create_password_reset_token(user.id)
+        # In a real app, you'd trigger an email here. 
+        # For development, we'll just print it to the console.
+        print(f"--- PASSWORD RESET LINK FOR {email} ---")
+        print(f"http://localhost:8000/api/users/reset-password?token={token}")
+        print("------------------------------------------")
+
+    return {"message": "If this email is registered, a password reset link has been sent."}
+
+# ---------------------------------------------------------
+# POST /users/reset-password
+# ---------------------------------------------------------
+@router.post("/reset-password")
+def reset_password(
+    token: str, 
+    new_password: str = Body(..., embed=True, min_length=8),
+    session: Session = Depends(get_session)
+):
+    """
+    Changes the current password for the new one, verifying the users identity with the reset token sent in the url.
+    """
+    payload = decode_token(token)
+    
+    # 1. Validate Token Type & Expiry
+    if not payload or payload.get("type") != "password_reset":
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+
+    # 2. Check Blocklist (To prevent using the same reset link twice)
+    jti = payload.get("jti")
+    if session.exec(select(TokenBlocklist).where(TokenBlocklist.jti == jti)).first():
+        raise HTTPException(status_code=400, detail="This reset link has already been used.")
+
+    # 3. Find User
+    user_id = payload.get("sub")
+    user = session.exec(select(User).where(User.id == user_id)).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    # 4. Update Password and Block Token
+    user.hashed_password = hash_password(new_password)
+    session.add(user)
+    session.add(TokenBlocklist(jti=jti)) # Burn the token so it can't be reused
+    session.commit()
+
+    return {"message": "Password updated successfully. You can now log in."}
