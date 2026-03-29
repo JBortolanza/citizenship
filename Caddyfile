@@ -2,7 +2,6 @@ localhost {
     tls internal
 
     handle_path /api* {
-        # 'backend' is the name of the service in docker-compose.yml
         reverse_proxy backend:8000
     }
 
