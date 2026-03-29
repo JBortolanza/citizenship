@@ -3,14 +3,15 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import APIKeyCookie
 from jose import JWTError, jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from sqlmodel import Session, select
 from dotenv import load_dotenv
 
-# Import your new database components
+# Import your database components
 from app.core.database import get_session
 from app.models.SQLmodels import User
 
@@ -63,19 +64,19 @@ def decode_access_token(token: str) -> Optional[dict]:
         return None
 
 # -----------------------------
-# Cookie-Based Dependency
+# Cookie-Based Security Scheme
 # -----------------------------
+# This tells OpenAPI/Swagger that an "access_token" cookie is required
+cookie_scheme = APIKeyCookie(name="access_token", auto_error=False)
 
 def get_current_user(
-    request: Request, 
+    token: Optional[str] = Depends(cookie_scheme), 
     session: Session = Depends(get_session)
 ) -> User:
     """
     Dependency to get the current user from the HTTP-only cookie.
     Used to protect routes: @app.get("/me", dependencies=[Depends(get_current_user)])
     """
-    token = request.cookies.get("access_token")
-
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, 

@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.SQLmodels import User
 
 # Import Security Logic from Core
-from app.core.auth import hash_password, verify_password, create_access_token
+from app.core.auth import hash_password, verify_password, create_access_token, get_current_user
 from app.core.database import get_session
 
 # Import of the models used in the routes
@@ -80,3 +80,18 @@ def login(
 def logout(response: Response):
     response.delete_cookie("access_token")
     return {"message": "Logged out successfully"}
+
+# ---------------------------------------------------------
+# GET /users/me
+# ---------------------------------------------------------
+@router.get("/me", response_model=UserRead)
+def get_me(current_user: User = Depends(get_current_user)):
+    """
+    Returns the currently authenticated user's profile.
+    Requires a valid HTTP-only JWT cookie.
+    """
+    # The get_current_user dependency handles all the security checks,
+    # token decoding, and database lookups. If the code reaches this line,
+    # the user is 100% authenticated.
+    
+    return current_user
