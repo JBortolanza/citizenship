@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie, Body, BackgroundTasks, Request
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
@@ -203,25 +204,62 @@ def update_my_profile(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
+    """
+    Updates the profile. Requires current_password to prevent hijacking.
+    Manually updates updated_at to ensure UTC consistency.
+    """
+    # 1. Security Verification: Check current password
+    if not verify_password(user_update.current_password, current_user.hashed_password):
+        # Sync log for failure
+        log_activity(
+            current_user.id, "PROFILE_UPDATE_FAILED_AUTH", 
+            "PATCH", "/users/me", request.client.host, 401
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Invalid current password."
+        )
+
+    # 2. Extract data (excluding the verification field)
     update_data = user_update.model_dump(exclude_unset=True)
+    update_data.pop("current_password")
+
     if not update_data:
-        raise HTTPException(status_code=400, detail="No data provided to update.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="No data provided to update."
+        )
 
+    # 3. Check for Email Collisions
     if "email" in update_data and update_data["email"] != current_user.email:
-        if session.exec(select(User).where(User.email == update_data["email"])).first():
-            raise HTTPException(status_code=400, detail="This email is already in use.")
+        existing_user = session.exec(select(User).where(User.email == update_data["email"])).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="This email is already in use."
+            )
 
+    # 4. Handle Password Hashing
     if "password" in update_data:
         update_data["hashed_password"] = hash_password(update_data.pop("password"))
 
+    # 5. Apply Changes & Force Timestamp Update
     for key, value in update_data.items():
         setattr(current_user, key, value)
+    
+    # Manually set to UTC now to match the AuditLog timing
+    current_user.updated_at = datetime.now(timezone.utc)
 
     session.add(current_user)
     session.commit()
     session.refresh(current_user)
 
-    background_tasks.add_task(log_activity, current_user.id, "PROFILE_UPDATED", "PATCH", "/users/me", request.client.host, 200)
+    # 6. Log Success via Background Task
+    background_tasks.add_task(
+        log_activity, current_user.id, "PROFILE_UPDATED", 
+        "PATCH", "/users/me", request.client.host, 200
+    )
+
     return current_user
 
 # ---------------------------------------------------------
@@ -266,6 +304,8 @@ def reset_password(
     user = session.exec(select(User).where(User.id == user_id)).first()
     
     user.hashed_password = hash_password(new_password)
+    user.updated_at = datetime.now(timezone.utc)
+
     session.add(user)
     session.add(TokenBlocklist(jti=payload.get("jti")))
     session.commit()
@@ -312,6 +352,7 @@ def confirm_account_recovery(
     user = session.exec(select(User).where(User.id == user_id)).first()
     
     user.is_active = True
+    user.updated_at = datetime.now(timezone.utc)
     session.add(user)
     session.add(TokenBlocklist(jti=payload.get("jti")))
     session.commit()

@@ -13,6 +13,7 @@ class UserCreate(SQLModel):
 
 # --- UPDATE SCHEMA (Request Body) ---
 class UserUpdate(SQLModel):
+    current_password: str
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     password: Optional[str] = Field(default=None)
@@ -24,8 +25,6 @@ class UserLogin(SQLModel):
     password: str
 
 # --- API RESPONSE SCHEMA (Response Body) ---
-# What the API sends back. 
-# We EXCLUDE the hashed_password for security.
 class UserRead(SQLModel):
     id: uuid.UUID  # Updated from int
     email: EmailStr
