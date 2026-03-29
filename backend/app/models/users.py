@@ -11,6 +11,12 @@ class UserCreate(SQLModel):
     full_name: str
     password: str 
 
+# --- UPDATE SCHEMA (Request Body) ---
+class UserUpdate(SQLModel):
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    password: Optional[str] = Field(default=None)
+
 # --- LOGIN SCHEMA (Request Body) ---
 # What the user sends to /login
 class UserLogin(SQLModel):
