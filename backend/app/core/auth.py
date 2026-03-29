@@ -56,7 +56,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
-    to_encode.update({"exp": expire, "type": "refresh", "jti": str(uuid.uuid4())})
+    to_encode.update({
+        "exp": expire,
+        "type": "refresh",
+         "jti": str(uuid.uuid4())
+    })
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def create_password_reset_token(user_id: uuid.UUID) -> str:
@@ -65,6 +69,17 @@ def create_password_reset_token(user_id: uuid.UUID) -> str:
         "exp": expire,
         "sub": str(user_id),
         "type": "password_reset",
+        "jti": str(uuid.uuid4())
+    }
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def create_account_recovery_token(user_id: uuid.UUID) -> str:
+    """Create a token specifically for reactivating a soft-deleted account."""
+    expire = datetime.now(timezone.utc) + timedelta(hours=1)
+    to_encode = {
+        "exp": expire,
+        "sub": str(user_id),
+        "type": "account_recovery",
         "jti": str(uuid.uuid4())
     }
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)

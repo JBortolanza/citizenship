@@ -3,6 +3,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie,
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 from pydantic import EmailStr
+from fastapi import BackgroundTasks
+
+# Import email service
+from app.core.email import EmailService
 
 
 # Import Database Tables
@@ -17,7 +21,8 @@ from app.core.auth import (
     decode_token,
     get_current_user,
     get_admin_user,
-    create_password_reset_token
+    create_password_reset_token,
+    create_account_recovery_token
 )
 from app.core.database import get_session
 
@@ -84,7 +89,7 @@ def login(
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, 
-            detail="This account has been deactivated. Please contact support."
+            detail="This account has been deactivated."
         )
 
     # Generate BOTH tokens
@@ -266,15 +271,19 @@ def update_my_profile(
 # POST /users/forgot-password
 # ---------------------------------------------------------
 @router.post("/forgot-password")
-def forgot_password(email: EmailStr = Body(..., embed=True), session: Session = Depends(get_session)):
+async def forgot_password(
+    background_tasks: BackgroundTasks, 
+    email: EmailStr = Body(..., embed=True), 
+    session: Session = Depends(get_session)  
+):
     """
-    This endpoint returns a single use password reset token embedded in a URL to be used in the reset-password route.
+    This endpoint creates a single use token for resetting the password ands sends to the email.
     """
     user = session.exec(select(User).where(User.email == email)).first()
     
     if user and user.is_active:
         token = create_password_reset_token(user.id)
-        #TODO: create the core module resposible for creating the url with token and sending to the users email
+        background_tasks.add_task(EmailService.send_reset_password_email, email, token)
 
 
     return {"message": "If this email is registered, a password reset link has been sent."}
@@ -285,7 +294,7 @@ def forgot_password(email: EmailStr = Body(..., embed=True), session: Session = 
 @router.post("/reset-password")
 def reset_password(
     token: str, 
-    new_password: str = Body(..., embed=True, min_length=8),
+    new_password: str = Body(..., embed=True),
     session: Session = Depends(get_session)
 ):
     """
@@ -315,3 +324,72 @@ def reset_password(
     session.commit()
 
     return {"message": "Password updated successfully. You can now log in."}
+
+# ---------------------------------------------------------
+# POST /users/recover-request
+# ---------------------------------------------------------
+@router.post("/recover-request")
+async def request_account_recovery(
+    background_tasks: BackgroundTasks,
+    email: EmailStr = Body(..., embed=True),
+    session: Session = Depends(get_session)
+):
+    """
+    Finds a deactivated account and sends a recovery link 
+    to the user's email via a background task.
+    """
+    user = session.exec(select(User).where(User.email == email)).first()
+    
+    if user and not user.is_active:
+        token = create_account_recovery_token(user.id)
+        background_tasks.add_task(EmailService.send_account_recovery_email, email, token)
+        
+    return {"message": "If an inactive account exists for this email, recovery instructions have been sent."}
+
+
+# ---------------------------------------------------------
+# POST /users/recover-confirm
+# ---------------------------------------------------------
+@router.post("/recover-confirm")
+def confirm_account_recovery(
+    token: str, 
+    session: Session = Depends(get_session)
+):
+    """
+    Verifies the recovery token and reactivates the account.
+    This bypasses the active user check to allow deactivated users access.
+    """
+    payload = decode_token(token)
+    
+    # 1. Verify token integrity and type
+    if not payload or payload.get("type") != "account_recovery":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Invalid or expired recovery token."
+        )
+
+    # 2. Check if the token has already been used (Blocklist)
+    jti = payload.get("jti")
+    if session.exec(select(TokenBlocklist).where(TokenBlocklist.jti == jti)).first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="This recovery link has already been used."
+        )
+
+    # 3. Find the user and reactivate the account
+    user_id = payload.get("sub")
+    user = session.exec(select(User).where(User.id == user_id)).first()
+    
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    if user.is_active:
+        return {"message": "Account is already active. You can log in normally."}
+
+    # Reactivate and "burn" the token
+    user.is_active = True
+    session.add(user)
+    session.add(TokenBlocklist(jti=jti))
+    session.commit()
+
+    return {"message": "Account successfully reactivated! You can now log in."}
