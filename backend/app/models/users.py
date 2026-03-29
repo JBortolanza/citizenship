@@ -1,3 +1,4 @@
+import uuid
 from typing import Optional
 from sqlmodel import SQLModel, Field
 
@@ -19,7 +20,7 @@ class UserLogin(SQLModel):
 # What the API sends back. 
 # We EXCLUDE the hashed_password for security.
 class UserRead(SQLModel):
-    id: int
+    id: uuid.UUID  # Updated from int
     email: str
     full_name: str
     role: str

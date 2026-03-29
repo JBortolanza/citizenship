@@ -59,8 +59,7 @@ def login(
         )
 
     # 3. Create the JWT Token
-    token = create_access_token(data={"sub": user.email})
-
+    token = create_access_token(data={"sub": str(user.id)})
     # 4. Set the HTTP-Only Cookie
     # This keeps the token safe from JavaScript (XSS protection)
     response.set_cookie(

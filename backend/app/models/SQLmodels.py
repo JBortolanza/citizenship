@@ -1,10 +1,10 @@
+import uuid
 from datetime import date, datetime
 from typing import List, Optional
 from sqlmodel import Field, Relationship, SQLModel
 
-# --- 1. User Table ---
 class User(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True) # Id is now UUID for addded safety
     email: str = Field(unique=True, index=True, nullable=False)
     hashed_password: str = Field(nullable=False)
     full_name: Optional[str] = None
@@ -13,14 +13,11 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = None
 
-    # Relationships
     cases: List["Case"] = Relationship(back_populates="user")
 
-
-# --- 2. Case Table ---
 class Case(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="user.id", index=True)
+    user_id: uuid.UUID = Field(foreign_key="user.id", index=True)
     title: Optional[str] = None
     status: Optional[str] = None
 
@@ -29,12 +26,10 @@ class Case(SQLModel, table=True):
     people: List["Person"] = Relationship(back_populates="case")
 
 
-# --- 3. Person Table ---
 class Person(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     case_id: int = Field(foreign_key="case.id", index=True)
-    
-    # Self-referencing Foreign Keys for the Tree
+
     father_id: Optional[int] = Field(default=None, foreign_key="person.id")
     mother_id: Optional[int] = Field(default=None, foreign_key="person.id")
     spouse_id: Optional[int] = Field(default=None, foreign_key="person.id")

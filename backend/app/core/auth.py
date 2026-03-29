@@ -1,4 +1,5 @@
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -88,17 +89,24 @@ def get_current_user(
             detail="Invalid or expired token"
         )
 
-    email = payload.get("sub")
-    if not email:
+    user_id_str = payload.get("sub")
+    if not user_id_str:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, 
             detail="Token payload invalid"
         )
+        
+    try:
+        user_id = uuid.UUID(user_id_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Invalid user ID format in token"
+        )
 
-    # Replaced MongoDB logic with SQLModel SELECT
-    statement = select(User).where(User.email == email)
+    statement = select(User).where(User.id == user_id)
     user = session.exec(statement).first()
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, 
