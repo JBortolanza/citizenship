@@ -3,13 +3,15 @@ from typing import Optional
 from sqlmodel import SQLModel, Field
 from pydantic import EmailStr
 
+
 # --- REGISTRATION SCHEMA (Request Body) ---
-# What the user sends to /register. 
+# What the user sends to /register.
 # We call it "password" here because the user sends plain text.
 class UserCreate(SQLModel):
     email: EmailStr
     full_name: str
-    password: str 
+    password: str
+
 
 # --- UPDATE SCHEMA (Request Body) ---
 class UserUpdate(SQLModel):
@@ -18,11 +20,13 @@ class UserUpdate(SQLModel):
     full_name: Optional[str] = None
     password: Optional[str] = Field(default=None)
 
+
 # --- LOGIN SCHEMA (Request Body) ---
 # What the user sends to /login
 class UserLogin(SQLModel):
     email: EmailStr
     password: str
+
 
 # --- API RESPONSE SCHEMA (Response Body) ---
 class UserRead(SQLModel):

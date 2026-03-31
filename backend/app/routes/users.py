@@ -1,6 +1,16 @@
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie, Body, BackgroundTasks, Request
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Response,
+    Cookie,
+    Body,
+    BackgroundTasks,
+    Request,
+)
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 from pydantic import EmailStr
@@ -13,15 +23,15 @@ from app.models.SQLmodels import User, TokenBlocklist
 
 # Import Security Logic from Core
 from app.core.auth import (
-    hash_password, 
-    verify_password, 
-    create_access_token, 
-    create_refresh_token, 
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
     decode_token,
     get_current_user,
     get_admin_user,
     create_password_reset_token,
-    create_account_recovery_token
+    create_account_recovery_token,
 )
 
 from app.core.database import get_session
@@ -33,6 +43,7 @@ from app.core.logging import log_activity
 # --- Router Setup ---
 router = APIRouter(prefix="/users", tags=["Users"])
 
+
 # ---------------------------------------------------------
 # POST /users/register
 # ---------------------------------------------------------
@@ -40,30 +51,54 @@ router = APIRouter(prefix="/users", tags=["Users"])
 def register_user(
     background_tasks: BackgroundTasks,
     request: Request,
-    user_in: UserCreate, 
-    session: Session = Depends(get_session)
+    user_in: UserCreate,
+    session: Session = Depends(get_session),
 ):
     new_user = User(
         email=user_in.email,
         full_name=user_in.full_name,
-        hashed_password=hash_password(user_in.password)
+        hashed_password=hash_password(user_in.password),
     )
     session.add(new_user)
-    
+
     try:
         session.commit()
         session.refresh(new_user)
-        background_tasks.add_task(log_activity, new_user.id, "REGISTER_SUCCESS", "POST", "/users/register", request.client.host, 201)
+        background_tasks.add_task(
+            log_activity,
+            new_user.id,
+            "REGISTER_SUCCESS",
+            "POST",
+            "/users/register",
+            request.client.host,
+            201,
+        )
         return new_user
-        
+
     except IntegrityError:
         session.rollback()
-        background_tasks.add_task(log_activity, None, "REGISTER_FAILED_DUPLICATE", "POST", "/users/register", request.client.host, 400)
-        
-        existing_user = session.exec(select(User).where(User.email == user_in.email)).first()
+        background_tasks.add_task(
+            log_activity,
+            None,
+            "REGISTER_FAILED_DUPLICATE",
+            "POST",
+            "/users/register",
+            request.client.host,
+            400,
+        )
+
+        existing_user = session.exec(
+            select(User).where(User.email == user_in.email)
+        ).first()
         if existing_user and not existing_user.is_active:
-            raise HTTPException(status_code=400, detail="This account was previously deactivated. Please use the Recovery page.")
-        raise HTTPException(status_code=400, detail="A user with this email already exists.")
+            raise HTTPException(
+                status_code=400,
+                detail="This account was previously deactivated. Please use the Recovery page.",
+            )
+        raise HTTPException(
+            status_code=400, detail="A user with this email already exists."
+        )
+
 
 # ---------------------------------------------------------
 # POST /users/login
@@ -72,29 +107,74 @@ def register_user(
 def login(
     background_tasks: BackgroundTasks,
     request: Request,
-    response: Response, 
-    login_data: UserLogin, 
-    session: Session = Depends(get_session)
+    response: Response,
+    login_data: UserLogin,
+    session: Session = Depends(get_session),
 ):
     statement = select(User).where(User.email == login_data.email)
     user = session.exec(statement).first()
 
     if not user or not verify_password(login_data.password, user.hashed_password):
-        background_tasks.add_task(log_activity, None, "LOGIN_FAILED_CREDENTIALS", "POST", "/users/login", request.client.host, 401)
+        background_tasks.add_task(
+            log_activity,
+            None,
+            "LOGIN_FAILED_CREDENTIALS",
+            "POST",
+            "/users/login",
+            request.client.host,
+            401,
+        )
         raise HTTPException(status_code=401, detail="Invalid email or password.")
-    
+
     if not user.is_active:
-        background_tasks.add_task(log_activity, user.id, "LOGIN_FAILED_INACTIVE", "POST", "/users/login", request.client.host, 403)
-        raise HTTPException(status_code=403, detail="This account has been deactivated.")
+        background_tasks.add_task(
+            log_activity,
+            user.id,
+            "LOGIN_FAILED_INACTIVE",
+            "POST",
+            "/users/login",
+            request.client.host,
+            403,
+        )
+        raise HTTPException(
+            status_code=403, detail="This account has been deactivated."
+        )
 
     access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
 
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=True, samesite="lax", max_age=900)
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=True, samesite="lax", max_age=604800, path="/api/users")
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=900,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=604800,
+        path="/api/users",
+    )
 
-    background_tasks.add_task(log_activity, user.id, "LOGIN_SUCCESS", "POST", "/users/login", request.client.host, 200)
-    return {"message": "Login successful", "user": {"email": user.email, "name": user.full_name}}
+    background_tasks.add_task(
+        log_activity,
+        user.id,
+        "LOGIN_SUCCESS",
+        "POST",
+        "/users/login",
+        request.client.host,
+        200,
+    )
+    return {
+        "message": "Login successful",
+        "user": {"email": user.email, "name": user.full_name},
+    }
+
 
 # ---------------------------------------------------------
 # POST /users/refresh
@@ -103,9 +183,9 @@ def login(
 def refresh_session(
     background_tasks: BackgroundTasks,
     request: Request,
-    response: Response, 
+    response: Response,
     refresh_token: str | None = Cookie(default=None),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Refresh token missing")
@@ -116,16 +196,42 @@ def refresh_session(
 
     user_id = uuid.UUID(payload.get("sub"))
     user = session.exec(select(User).where(User.id == user_id)).first()
-    
+
     if not user or not user.is_active:
-        background_tasks.add_task(log_activity, user_id, "REFRESH_FAILED_INACTIVE", "POST", "/users/refresh", request.client.host, 401)
-        raise HTTPException(status_code=401, detail="User account is inactive or deleted")
+        background_tasks.add_task(
+            log_activity,
+            user_id,
+            "REFRESH_FAILED_INACTIVE",
+            "POST",
+            "/users/refresh",
+            request.client.host,
+            401,
+        )
+        raise HTTPException(
+            status_code=401, detail="User account is inactive or deleted"
+        )
 
     new_access_token = create_access_token(data={"sub": str(user.id)})
-    response.set_cookie(key="access_token", value=new_access_token, httponly=True, secure=True, samesite="lax", max_age=900)
+    response.set_cookie(
+        key="access_token",
+        value=new_access_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=900,
+    )
 
-    background_tasks.add_task(log_activity, user.id, "SESSION_REFRESHED", "POST", "/users/refresh", request.client.host, 200)
+    background_tasks.add_task(
+        log_activity,
+        user.id,
+        "SESSION_REFRESHED",
+        "POST",
+        "/users/refresh",
+        request.client.host,
+        200,
+    )
     return {"message": "Session refreshed successfully"}
+
 
 # ---------------------------------------------------------
 # GET /users/me
@@ -134,10 +240,19 @@ def refresh_session(
 def get_me(
     background_tasks: BackgroundTasks,
     request: Request,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    background_tasks.add_task(log_activity, current_user.id, "PROFILE_VIEWED", "GET", "/users/me", request.client.host, 200)
+    background_tasks.add_task(
+        log_activity,
+        current_user.id,
+        "PROFILE_VIEWED",
+        "GET",
+        "/users/me",
+        request.client.host,
+        200,
+    )
     return current_user
+
 
 # ---------------------------------------------------------
 # POST /users/logout
@@ -146,9 +261,9 @@ def get_me(
 def logout(
     background_tasks: BackgroundTasks,
     request: Request,
-    response: Response, 
+    response: Response,
     refresh_token: str | None = Cookie(default=None),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     user_id = None
     if refresh_token:
@@ -162,9 +277,18 @@ def logout(
 
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token", path="/api/users")
-    
-    background_tasks.add_task(log_activity, user_id, "LOGOUT", "POST", "/users/logout", request.client.host, 200)
+
+    background_tasks.add_task(
+        log_activity,
+        user_id,
+        "LOGOUT",
+        "POST",
+        "/users/logout",
+        request.client.host,
+        200,
+    )
     return {"message": "Logged out successfully"}
+
 
 # ---------------------------------------------------------
 # DELETE /users/me
@@ -176,7 +300,7 @@ def delete_my_account(
     response: Response,
     current_user: User = Depends(get_current_user),
     refresh_token: str | None = Cookie(default=None),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     current_user.is_active = False
     session.add(current_user)
@@ -189,9 +313,18 @@ def delete_my_account(
     session.commit()
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token", path="/api/users")
-    
-    background_tasks.add_task(log_activity, current_user.id, "ACCOUNT_DELETED", "DELETE", "/users/me", request.client.host, 200)
+
+    background_tasks.add_task(
+        log_activity,
+        current_user.id,
+        "ACCOUNT_DELETED",
+        "DELETE",
+        "/users/me",
+        request.client.host,
+        200,
+    )
     return {"message": "Account successfully deleted and logged out."}
+
 
 # ---------------------------------------------------------
 # PATCH /users/me
@@ -202,7 +335,7 @@ def update_my_profile(
     request: Request,
     user_update: UserUpdate,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """
     Updates the profile. Requires current_password to prevent hijacking.
@@ -212,12 +345,15 @@ def update_my_profile(
     if not verify_password(user_update.current_password, current_user.hashed_password):
         # Sync log for failure
         log_activity(
-            current_user.id, "PROFILE_UPDATE_FAILED_AUTH", 
-            "PATCH", "/users/me", request.client.host, 401
+            current_user.id,
+            "PROFILE_UPDATE_FAILED_AUTH",
+            "PATCH",
+            "/users/me",
+            request.client.host,
+            401,
         )
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="Invalid current password."
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid current password."
         )
 
     # 2. Extract data (excluding the verification field)
@@ -226,17 +362,19 @@ def update_my_profile(
 
     if not update_data:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="No data provided to update."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No data provided to update.",
         )
 
     # 3. Check for Email Collisions
     if "email" in update_data and update_data["email"] != current_user.email:
-        existing_user = session.exec(select(User).where(User.email == update_data["email"])).first()
+        existing_user = session.exec(
+            select(User).where(User.email == update_data["email"])
+        ).first()
         if existing_user:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail="This email is already in use."
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This email is already in use.",
             )
 
     # 4. Handle Password Hashing
@@ -246,7 +384,7 @@ def update_my_profile(
     # 5. Apply Changes & Force Timestamp Update
     for key, value in update_data.items():
         setattr(current_user, key, value)
-    
+
     # Manually set to UTC now to match the AuditLog timing
     current_user.updated_at = datetime.now(timezone.utc)
 
@@ -256,33 +394,58 @@ def update_my_profile(
 
     # 6. Log Success via Background Task
     background_tasks.add_task(
-        log_activity, current_user.id, "PROFILE_UPDATED", 
-        "PATCH", "/users/me", request.client.host, 200
+        log_activity,
+        current_user.id,
+        "PROFILE_UPDATED",
+        "PATCH",
+        "/users/me",
+        request.client.host,
+        200,
     )
 
     return current_user
+
 
 # ---------------------------------------------------------
 # POST /users/forgot-password
 # ---------------------------------------------------------
 @router.post("/forgot-password")
 async def forgot_password(
-    background_tasks: BackgroundTasks, 
+    background_tasks: BackgroundTasks,
     request: Request,
-    email: EmailStr = Body(..., embed=True), 
-    session: Session = Depends(get_session)  
+    email: EmailStr = Body(..., embed=True),
+    session: Session = Depends(get_session),
 ):
     user = session.exec(select(User).where(User.email == email)).first()
-    
+
     if user and user.is_active:
         token = create_password_reset_token(user.id)
         background_tasks.add_task(EmailService.send_reset_password_email, email, token)
-        background_tasks.add_task(log_activity, user.id, "FORGOT_PASSWORD_REQUESTED", "POST", "/users/forgot-password", request.client.host, 200)
+        background_tasks.add_task(
+            log_activity,
+            user.id,
+            "FORGOT_PASSWORD_REQUESTED",
+            "POST",
+            "/users/forgot-password",
+            request.client.host,
+            200,
+        )
     else:
         # We log that someone searched for an email that doesn't exist
-        background_tasks.add_task(log_activity, None, "FORGOT_PASSWORD_NOT_FOUND", "POST", "/users/forgot-password", request.client.host, 200)
+        background_tasks.add_task(
+            log_activity,
+            None,
+            "FORGOT_PASSWORD_NOT_FOUND",
+            "POST",
+            "/users/forgot-password",
+            request.client.host,
+            200,
+        )
 
-    return {"message": "If this email is registered, a password reset link has been sent."}
+    return {
+        "message": "If this email is registered, a password reset link has been sent."
+    }
+
 
 # ---------------------------------------------------------
 # POST /users/reset-password
@@ -291,18 +454,26 @@ async def forgot_password(
 def reset_password(
     background_tasks: BackgroundTasks,
     request: Request,
-    token: str, 
+    token: str,
     new_password: str = Body(..., embed=True),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     payload = decode_token(token)
     if not payload or payload.get("type") != "password_reset":
-        background_tasks.add_task(log_activity, None, "RESET_PASSWORD_FAILED_TOKEN", "POST", "/users/reset-password", request.client.host, 400)
+        background_tasks.add_task(
+            log_activity,
+            None,
+            "RESET_PASSWORD_FAILED_TOKEN",
+            "POST",
+            "/users/reset-password",
+            request.client.host,
+            400,
+        )
         raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
 
     user_id = payload.get("sub")
     user = session.exec(select(User).where(User.id == user_id)).first()
-    
+
     user.hashed_password = hash_password(new_password)
     user.updated_at = datetime.now(timezone.utc)
 
@@ -310,8 +481,17 @@ def reset_password(
     session.add(TokenBlocklist(jti=payload.get("jti")))
     session.commit()
 
-    background_tasks.add_task(log_activity, user.id, "PASSWORD_RESET_SUCCESS", "POST", "/users/reset-password", request.client.host, 200)
+    background_tasks.add_task(
+        log_activity,
+        user.id,
+        "PASSWORD_RESET_SUCCESS",
+        "POST",
+        "/users/reset-password",
+        request.client.host,
+        200,
+    )
     return {"message": "Password updated successfully."}
+
 
 # ---------------------------------------------------------
 # POST /users/recover-request
@@ -321,18 +501,39 @@ async def request_account_recovery(
     background_tasks: BackgroundTasks,
     request: Request,
     email: EmailStr = Body(..., embed=True),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     user = session.exec(select(User).where(User.email == email)).first()
-    
+
     if user and not user.is_active:
         token = create_account_recovery_token(user.id)
-        background_tasks.add_task(EmailService.send_account_recovery_email, email, token)
-        background_tasks.add_task(log_activity, user.id, "RECOVERY_REQUESTED", "POST", "/users/recover-request", request.client.host, 200)
+        background_tasks.add_task(
+            EmailService.send_account_recovery_email, email, token
+        )
+        background_tasks.add_task(
+            log_activity,
+            user.id,
+            "RECOVERY_REQUESTED",
+            "POST",
+            "/users/recover-request",
+            request.client.host,
+            200,
+        )
     else:
-        background_tasks.add_task(log_activity, None, "RECOVERY_REQUESTED_NOT_FOUND", "POST", "/users/recover-request", request.client.host, 200)
-        
-    return {"message": "If an inactive account exists, recovery instructions have been sent."}
+        background_tasks.add_task(
+            log_activity,
+            None,
+            "RECOVERY_REQUESTED_NOT_FOUND",
+            "POST",
+            "/users/recover-request",
+            request.client.host,
+            200,
+        )
+
+    return {
+        "message": "If an inactive account exists, recovery instructions have been sent."
+    }
+
 
 # ---------------------------------------------------------
 # POST /users/recover-confirm
@@ -341,8 +542,8 @@ async def request_account_recovery(
 def confirm_account_recovery(
     background_tasks: BackgroundTasks,
     request: Request,
-    token: str, 
-    session: Session = Depends(get_session)
+    token: str,
+    session: Session = Depends(get_session),
 ):
     payload = decode_token(token)
     if not payload or payload.get("type") != "account_recovery":
@@ -350,12 +551,20 @@ def confirm_account_recovery(
 
     user_id = payload.get("sub")
     user = session.exec(select(User).where(User.id == user_id)).first()
-    
+
     user.is_active = True
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
     session.add(TokenBlocklist(jti=payload.get("jti")))
     session.commit()
 
-    background_tasks.add_task(log_activity, user.id, "ACCOUNT_REACTIVATED", "POST", "/users/recover-confirm", request.client.host, 200)
+    background_tasks.add_task(
+        log_activity,
+        user.id,
+        "ACCOUNT_REACTIVATED",
+        "POST",
+        "/users/recover-confirm",
+        request.client.host,
+        200,
+    )
     return {"message": "Account successfully reactivated!"}
