@@ -103,7 +103,7 @@ def register_user(
 # ---------------------------------------------------------
 # POST /users/login
 # ---------------------------------------------------------
-@router.post("/login")
+@router.post("/login", response_model=UserRead)
 def login(
     background_tasks: BackgroundTasks,
     request: Request,
@@ -170,10 +170,7 @@ def login(
         request.client.host,
         200,
     )
-    return {
-        "message": "Login successful",
-        "user": {"email": user.email, "name": user.full_name},
-    }
+    return user
 
 
 # ---------------------------------------------------------
