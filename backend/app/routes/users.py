@@ -407,7 +407,7 @@ def update_my_profile(
 # POST /users/forgot-password
 # ---------------------------------------------------------
 @router.post("/forgot-password")
-async def forgot_password(
+def forgot_password(
     background_tasks: BackgroundTasks,
     request: Request,
     email: EmailStr = Body(..., embed=True),
@@ -494,7 +494,7 @@ def reset_password(
 # POST /users/recover-request
 # ---------------------------------------------------------
 @router.post("/recover-request")
-async def request_account_recovery(
+def request_account_recovery(
     background_tasks: BackgroundTasks,
     request: Request,
     email: EmailStr = Body(..., embed=True),
