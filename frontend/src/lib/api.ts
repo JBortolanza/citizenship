@@ -22,15 +22,15 @@ api.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
-      originalRequest.url !== "/auth/login" &&
-      originalRequest.url !== "/auth/refresh"
+      originalRequest.url !== "/users/login" &&
+      originalRequest.url !== "/users/refresh"
     ) {
       originalRequest._retry = true; // Marca que estamos tentando novamente
 
       try {
         // Chama a rota do seu backend responsável por ler o refresh_token (cookie)
         // e enviar um novo access_token (também via set-cookie)
-        await api.post("/auth/refresh");
+        await api.post("/users/refresh");
 
         // Se o refresh deu certo, o navegador já salvou o novo cookie.
         // Agora, refazemos a requisição original que havia falhado no início.
