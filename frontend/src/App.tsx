@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LoginPage } from "./pages/Login";
+import { RegisterPage } from "./pages/Register";
+import { PageTransition } from "./components/ui/page-transition";
 import { useAuthStore } from "./store/auth";
 
 // Um componente simples para proteger rotas privadas
@@ -38,8 +40,24 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Rota pública: Página de Login */}
-        <Route path="/login" element={<LoginPage />} />
+        {/* 2. Envolva as páginas com o <PageTransition> */}
+        <Route
+          path="/login"
+          element={
+            <PageTransition>
+              <LoginPage />
+            </PageTransition>
+          }
+        />
+
+        <Route
+          path="/register"
+          element={
+            <PageTransition>
+              <RegisterPage />
+            </PageTransition>
+          }
+        />
 
         {/* Rota privada: Raiz do sistema */}
         <Route
