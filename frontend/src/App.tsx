@@ -5,44 +5,27 @@ import { ForgotPasswordPage } from "./pages/ForgotPassword";
 import { ResetPasswordPage } from "./pages/ResetPassword.tsx";
 import { RecoverAccountRequestPage } from "./pages/RecoverAccountRequest.tsx";
 import { RecoverAccountPage } from "./pages/RecoverAccount.tsx";
+import { DashboardPage } from "./pages/Dashboard.tsx";
 import { PageTransition } from "./components/ui/page-transition";
 import { useAuthStore } from "./store/auth";
 
-// Um componente simples para proteger rotas privadas
-function RotaPrivada({ children }: { children: React.ReactNode }) {
+// A simple component to protect private routes
+function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  // Se não estiver logado, joga para o login
+  // If not authenticated, redirect to login
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // Se estiver logado, mostra o conteúdo (ex: Dashboard)
+  // If authenticated, render content (e.g., Dashboard)
   return <>{children}</>;
-}
-function DashboardTemporario() {
-  const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
-
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-4">Painel de Cidadania</h1>
-      <p>Bem-vindo, {user?.name || user?.email}</p>
-      <button
-        onClick={logout}
-        className="mt-4 px-4 py-2 bg-red-500 text-white rounded"
-      >
-        Sair
-      </button>
-    </div>
-  );
 }
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 2. Envolva as páginas com o <PageTransition> */}
         <Route
           path="/login"
           element={
@@ -93,15 +76,20 @@ function App() {
           }
         />
 
-        {/* Rota privada: Raiz do sistema */}
+        {/* PRIVATE ROUTES */}
         <Route
-          path="/"
+          path="/dashboard"
           element={
-            <RotaPrivada>
-              <DashboardTemporario />
-            </RotaPrivada>
+            <PrivateRoute>
+              <DashboardPage />
+            </PrivateRoute>
           }
         />
+        {/*Redirect root to dashboard */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+        {/*Catch-all for 404s */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   );

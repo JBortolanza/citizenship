@@ -44,7 +44,7 @@ export function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/", { replace: true });
+      navigate("/dashboard", { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
@@ -57,7 +57,6 @@ export function LoginPage() {
       });
 
       login(response.data);
-      navigate("/", { replace: true });
     } catch (error: any) {
       setApiError("E-mail ou senha incorretos.");
     }
