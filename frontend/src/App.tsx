@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LoginPage } from "./pages/Login";
 import { RegisterPage } from "./pages/Register";
 import { ForgotPasswordPage } from "./pages/ForgotPassword";
+import { ResetPasswordPage } from "./pages/ResetPassword.tsx";
 import { PageTransition } from "./components/ui/page-transition";
 import { useAuthStore } from "./store/auth";
 
@@ -62,6 +63,14 @@ function App() {
           element={
             <PageTransition>
               <ForgotPasswordPage />
+            </PageTransition>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <PageTransition>
+              <ResetPasswordPage />
             </PageTransition>
           }
         />
