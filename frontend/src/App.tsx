@@ -1,5 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LoginPage } from "./pages/Login";
+import { RegisterPage } from "./pages/Register";
+import { ForgotPasswordPage } from "./pages/ForgotPassword";
+import { ResetPasswordPage } from "./pages/ResetPassword.tsx";
+import { PageTransition } from "./components/ui/page-transition";
 import { useAuthStore } from "./store/auth";
 
 // Um componente simples para proteger rotas privadas
@@ -14,8 +18,6 @@ function RotaPrivada({ children }: { children: React.ReactNode }) {
   // Se estiver logado, mostra o conteúdo (ex: Dashboard)
   return <>{children}</>;
 }
-
-// Componente temporário para o painel principal (você criará o real depois)
 function DashboardTemporario() {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
@@ -38,8 +40,40 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Rota pública: Página de Login */}
-        <Route path="/login" element={<LoginPage />} />
+        {/* 2. Envolva as páginas com o <PageTransition> */}
+        <Route
+          path="/login"
+          element={
+            <PageTransition>
+              <LoginPage />
+            </PageTransition>
+          }
+        />
+
+        <Route
+          path="/register"
+          element={
+            <PageTransition>
+              <RegisterPage />
+            </PageTransition>
+          }
+        />
+        <Route
+          path="/forgotpassword"
+          element={
+            <PageTransition>
+              <ForgotPasswordPage />
+            </PageTransition>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <PageTransition>
+              <ResetPasswordPage />
+            </PageTransition>
+          }
+        />
 
         {/* Rota privada: Raiz do sistema */}
         <Route
