@@ -5,10 +5,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
   EnvelopeSimpleIcon,
-  LockSimpleIcon,
   CircleNotchIcon,
-  EyeIcon,
-  EyeSlashIcon,
+  CheckCircleIcon,
 } from "@phosphor-icons/react";
 
 import { api } from "@/lib/api";
@@ -20,53 +18,57 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
-const loginSchema = z.object({
-  email: z.email("Digite um e-mail válido"),
-  password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres"),
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Digite um e-mail válido"),
 });
 
-type LoginForm = z.infer<typeof loginSchema>;
+type ForgotPasswordForm = z.infer<typeof forgotPasswordSchema>;
 
-export function LoginPage() {
+export function ForgotPasswordPage() {
   const navigate = useNavigate();
-  const login = useAuthStore((state) => state.login);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
   const [apiError, setApiError] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<ForgotPasswordForm>({
+    resolver: zodResolver(forgotPasswordSchema),
   });
 
+  // Se o usuário já estiver logado, redireciona para a home
   useEffect(() => {
     if (isAuthenticated) {
       navigate("/", { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
-  const onSubmit = async (data: LoginForm) => {
+  const onSubmit = async (data: ForgotPasswordForm) => {
     setApiError(null);
+    setSuccessMessage(null);
+
     try {
-      const response = await api.post("/users/login", {
+      await api.post("/users/forgot-password", {
         email: data.email,
-        password: data.password,
       });
 
-      login(response.data);
-      navigate("/", { replace: true });
+      setSuccessMessage(
+        "Se o e-mail estiver cadastrado, você receberá um link com as instruções para redefinir sua senha.",
+      );
     } catch (error: any) {
-      setApiError("E-mail ou senha incorretos.");
+      setApiError(
+        "Não foi possível processar sua solicitação no momento. Tente novamente.",
+      );
     }
   };
 
   return (
     <AuthLayout
-      title="Bem-vindo de volta"
-      subtitle="Acesse sua conta para gerenciar seus processos"
+      title="Recuperar Senha"
+      subtitle="Digite seu e-mail para receber um link de redefinição de senha"
     >
       <Card className="border-slate-200/60 shadow-xl shadow-slate-200/30 bg-white ring-1 ring-black/[0.02]">
         <CardContent className="pt-8">
@@ -85,6 +87,7 @@ export function LoginPage() {
                   type="email"
                   placeholder="usuario@exemplo.com"
                   className="pl-11 h-12 border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all rounded-xl"
+                  disabled={isSubmitting || !!successMessage}
                   {...register("email")}
                 />
               </div>
@@ -95,56 +98,20 @@ export function LoginPage() {
               )}
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label
-                  htmlFor="password"
-                  className="text-slate-700 font-medium"
-                >
-                  Senha
-                </Label>
-                <a
-                  href="forgotpassword#"
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
-                >
-                  Esqueceu a senha?
-                </a>
-              </div>
-              <div className="relative group">
-                <LockSimpleIcon
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors"
-                  size={18}
-                />
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  className="pl-11 pr-11 h-12 border-slate-200 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all rounded-xl"
-                  {...register("password")}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
-                >
-                  {showPassword ? (
-                    <EyeSlashIcon size={18} />
-                  ) : (
-                    <EyeIcon size={18} />
-                  )}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="text-xs font-semibold text-destructive mt-1.5 ml-1">
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
-
             {apiError && (
               <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-xs rounded-xl font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                 {apiError}
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs rounded-xl font-medium flex items-start gap-2 animate-in fade-in slide-in-from-top-1 leading-relaxed">
+                <CheckCircleIcon
+                  className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5"
+                  weight="fill"
+                />
+                {successMessage}
               </div>
             )}
 
@@ -152,15 +119,15 @@ export function LoginPage() {
               <Button
                 type="submit"
                 className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-lg shadow-slate-200 transition-all active:scale-[0.98]"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !!successMessage}
               >
                 {isSubmitting ? (
                   <div className="flex items-center gap-2">
                     <CircleNotchIcon className="h-5 w-5 animate-spin" />
-                    <span>Autenticando...</span>
+                    <span>Enviando...</span>
                   </div>
                 ) : (
-                  "Acessar Sistema"
+                  "Enviar link de recuperação"
                 )}
               </Button>
 
@@ -176,11 +143,10 @@ export function LoginPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate("/register")}
+                onClick={() => navigate("/login")}
                 className="w-full h-12 bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 font-bold rounded-xl transition-all active:scale-[0.98]"
-                disabled={isSubmitting}
               >
-                Criar uma conta
+                Voltar para o login
               </Button>
             </div>
           </form>

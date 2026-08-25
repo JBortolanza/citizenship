@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LoginPage } from "./pages/Login";
 import { RegisterPage } from "./pages/Register";
+import { ForgotPasswordPage } from "./pages/ForgotPassword";
 import { PageTransition } from "./components/ui/page-transition";
 import { useAuthStore } from "./store/auth";
 
@@ -16,8 +17,6 @@ function RotaPrivada({ children }: { children: React.ReactNode }) {
   // Se estiver logado, mostra o conteúdo (ex: Dashboard)
   return <>{children}</>;
 }
-
-// Componente temporário para o painel principal (você criará o real depois)
 function DashboardTemporario() {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
@@ -55,6 +54,14 @@ function App() {
           element={
             <PageTransition>
               <RegisterPage />
+            </PageTransition>
+          }
+        />
+        <Route
+          path="/forgotpassword"
+          element={
+            <PageTransition>
+              <ForgotPasswordPage />
             </PageTransition>
           }
         />
