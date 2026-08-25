@@ -18,13 +18,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
-const forgotPasswordSchema = z.object({
+const recoverAccountSchema = z.object({
   email: z.string().email("Digite um e-mail válido"),
 });
 
-type ForgotPasswordForm = z.infer<typeof forgotPasswordSchema>;
+type RecoverAccountForm = z.infer<typeof recoverAccountSchema>;
 
-export function ForgotPasswordPage() {
+export function RecoverAccountRequestPage() {
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
@@ -35,8 +35,8 @@ export function ForgotPasswordPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<ForgotPasswordForm>({
-    resolver: zodResolver(forgotPasswordSchema),
+  } = useForm<RecoverAccountForm>({
+    resolver: zodResolver(recoverAccountSchema),
   });
 
   useEffect(() => {
@@ -45,29 +45,29 @@ export function ForgotPasswordPage() {
     }
   }, [isAuthenticated, navigate]);
 
-  const onSubmit = async (data: ForgotPasswordForm) => {
+  const onSubmit = async (data: RecoverAccountForm) => {
     setApiError(null);
     setSuccessMessage(null);
 
     try {
-      await api.post("/users/forgot-password", {
+      await api.post("/users/recover-request", {
         email: data.email,
       });
 
       setSuccessMessage(
-        "Se o e-mail estiver cadastrado, você receberá um link com as instruções para redefinir sua senha.",
+        "Se a conta estiver cadastrada no sistema, você receberá um e-mail com as instruções para reativá-la.",
       );
     } catch (error: any) {
       setApiError(
-        "Não foi possível processar sua solicitação no momento. Tente novamente.",
+        "Não foi possível processar a solicitação no momento. Tente novamente.",
       );
     }
   };
 
   return (
     <AuthLayout
-      title="Recuperar Senha"
-      subtitle="Digite seu e-mail para receber um link de redefinição de senha"
+      title="Reativar Conta"
+      subtitle="Digite seu e-mail cadastrado para receber o link de reativação da sua conta"
     >
       <Card className="border-slate-200/60 shadow-xl shadow-slate-200/30 bg-white ring-1 ring-black/[0.02]">
         <CardContent className="pt-8">
@@ -126,19 +126,9 @@ export function ForgotPasswordPage() {
                     <span>Enviando...</span>
                   </div>
                 ) : (
-                  "Enviar link de recuperação"
+                  "Enviar link de reativação"
                 )}
               </Button>
-              <p className="text-xs text-center text-slate-500 pt-1">
-                Conta desativada ou excluída?{" "}
-                <button
-                  type="button"
-                  onClick={() => navigate("/recover-request")}
-                  className="font-semibold text-blue-600 hover:text-blue-800 transition-colors hover:underline"
-                >
-                  Reativar conta
-                </button>
-              </p>
 
               <div className="relative pt-2">
                 <div className="absolute inset-0 flex items-center">

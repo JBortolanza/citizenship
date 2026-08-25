@@ -3,6 +3,8 @@ import { LoginPage } from "./pages/Login";
 import { RegisterPage } from "./pages/Register";
 import { ForgotPasswordPage } from "./pages/ForgotPassword";
 import { ResetPasswordPage } from "./pages/ResetPassword.tsx";
+import { RecoverAccountRequestPage } from "./pages/RecoverAccountRequest.tsx";
+import { RecoverAccountPage } from "./pages/RecoverAccount.tsx";
 import { PageTransition } from "./components/ui/page-transition";
 import { useAuthStore } from "./store/auth";
 
@@ -71,6 +73,22 @@ function App() {
           element={
             <PageTransition>
               <ResetPasswordPage />
+            </PageTransition>
+          }
+        />
+        <Route
+          path="/recover-request"
+          element={
+            <PageTransition>
+              <RecoverAccountRequestPage />
+            </PageTransition>
+          }
+        />
+        <Route
+          path="/recover-account"
+          element={
+            <PageTransition>
+              <RecoverAccountPage />
             </PageTransition>
           }
         />
