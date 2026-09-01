@@ -1,44 +1,44 @@
 import uuid
 from datetime import datetime, timezone
+
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
+    Body,
+    Cookie,
     Depends,
     HTTPException,
-    status,
-    Response,
-    Cookie,
-    Body,
-    BackgroundTasks,
     Request,
+    Response,
+    status,
 )
-from sqlmodel import Session, select
-from sqlalchemy.exc import IntegrityError
 from pydantic import EmailStr
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, select
+
+# Import Security Logic from Core
+from app.core.auth import (
+    create_access_token,
+    create_account_recovery_token,
+    # get_admin_user,
+    create_password_reset_token,
+    create_refresh_token,
+    decode_token,
+    get_current_user,
+    hash_password,
+    verify_password,
+)
+from app.core.database import get_session
 
 # Import email service
 from app.core.email import EmailService
 
-# Import Database Tables
-from app.models.SQLmodels import User, TokenBlocklist
-
-# Import Security Logic from Core
-from app.core.auth import (
-    hash_password,
-    verify_password,
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-    get_current_user,
-    # get_admin_user,
-    create_password_reset_token,
-    create_account_recovery_token,
-)
-
-from app.core.database import get_session
-from app.models.users import UserRead, UserCreate, UserLogin, UserUpdate
-
 # Import Logging Utility
 from app.core.logging import log_activity
+
+# Import Database Tables
+from app.models.SQLmodels import TokenBlocklist, User
+from app.models.users import UserCreate, UserLogin, UserRead, UserUpdate
 
 # --- Router Setup ---
 router = APIRouter(prefix="/users", tags=["Users"])

@@ -1,6 +1,8 @@
-from sqlmodel import create_engine, Session, SQLModel
-from app.models.SQLmodels import *
 import os
+
+from sqlmodel import Session, SQLModel, create_engine
+
+from app.models.SQLmodels import *
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -9,9 +11,11 @@ if not DATABASE_URL:
 
 engine = create_engine(DATABASE_URL, echo=True)
 
+
 def init_db():
     # This creates the tables based on your SQLModel classes
     SQLModel.metadata.create_all(engine)
+
 
 def get_session():
     with Session(engine) as session:

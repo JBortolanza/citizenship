@@ -1,7 +1,8 @@
 import os
+
+from dotenv import load_dotenv
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from pydantic import EmailStr
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -15,18 +16,19 @@ conf = ConnectionConfig(
     MAIL_STARTTLS=True,
     MAIL_SSL_TLS=False,
     USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True
+    VALIDATE_CERTS=True,
 )
 
 # This is the base URL of your frontend (e.g., http://localhost)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost")
+
 
 class EmailService:
     @staticmethod
     async def send_reset_password_email(email: EmailStr, token: str):
         """Sends an email with a link to the frontend password reset page."""
         url = f"{FRONTEND_URL}/reset-password?token={token}"
-        
+
         body = f"""
         <html>
             <body>
@@ -37,12 +39,12 @@ class EmailService:
             </body>
         </html>
         """
-        
+
         message = MessageSchema(
             subject="Citizenship System - Password Reset",
             recipients=[email],
             body=body,
-            subtype=MessageType.html
+            subtype=MessageType.html,
         )
 
         fm = FastMail(conf)
@@ -52,7 +54,7 @@ class EmailService:
     async def send_account_recovery_email(email: EmailStr, token: str):
         """Sends an email with a link to the frontend account reactivation page."""
         url = f"{FRONTEND_URL}/recover-account?token={token}"
-        
+
         body = f"""
         <html>
             <body>
@@ -63,12 +65,12 @@ class EmailService:
             </body>
         </html>
         """
-        
+
         message = MessageSchema(
             subject="Citizenship System - Account Recovery",
             recipients=[email],
             body=body,
-            subtype=MessageType.html
+            subtype=MessageType.html,
         )
 
         fm = FastMail(conf)

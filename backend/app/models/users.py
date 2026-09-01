@@ -1,7 +1,8 @@
 import uuid
 from typing import Optional
-from sqlmodel import SQLModel, Field
+
 from pydantic import EmailStr
+from sqlmodel import Field, SQLModel
 
 
 # --- REGISTRATION SCHEMA (Request Body) ---

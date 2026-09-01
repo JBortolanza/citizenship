@@ -3,13 +3,13 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyCookie
 from jose import JWTError, jwt
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
 from sqlmodel import Session, select
-from dotenv import load_dotenv
 
 # Import database components
 from app.core.database import get_session
@@ -35,8 +35,10 @@ REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", 7))
 # -----------------------------
 pwd_hasher = PasswordHasher()
 
+
 def hash_password(password: str) -> str:
     return pwd_hasher.hash(password)
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
@@ -44,28 +46,27 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except VerifyMismatchError:
         return False
 
+
 # -----------------------------
 # JWT token functions
 # -----------------------------
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({
-        "exp": expire, 
-        "type": "access", 
-        "jti": str(uuid.uuid4())
-    })
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    to_encode.update({"exp": expire, "type": "access", "jti": str(uuid.uuid4())})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
-    to_encode.update({
-        "exp": expire,
-        "type": "refresh",
-         "jti": str(uuid.uuid4())
-    })
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+    to_encode.update({"exp": expire, "type": "refresh", "jti": str(uuid.uuid4())})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 
 def create_password_reset_token(user_id: uuid.UUID) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=15)
@@ -73,9 +74,10 @@ def create_password_reset_token(user_id: uuid.UUID) -> str:
         "exp": expire,
         "sub": str(user_id),
         "type": "password_reset",
-        "jti": str(uuid.uuid4())
+        "jti": str(uuid.uuid4()),
     }
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 
 def create_account_recovery_token(user_id: uuid.UUID) -> str:
     """Create a token specifically for reactivating a soft-deleted account."""
@@ -84,9 +86,10 @@ def create_account_recovery_token(user_id: uuid.UUID) -> str:
         "exp": expire,
         "sub": str(user_id),
         "type": "account_recovery",
-        "jti": str(uuid.uuid4())
+        "jti": str(uuid.uuid4()),
     }
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 
 def decode_token(token: str) -> Optional[dict]:
     try:
@@ -94,48 +97,64 @@ def decode_token(token: str) -> Optional[dict]:
     except JWTError:
         return None
 
+
 # -----------------------------
 # Cookie-Based Security Schemes
 # -----------------------------
 cookie_scheme = APIKeyCookie(name="access_token", auto_error=False)
 
+
 def get_current_user(
-    token: Optional[str] = Depends(cookie_scheme), 
-    session: Session = Depends(get_session)
+    token: Optional[str] = Depends(cookie_scheme),
+    session: Session = Depends(get_session),
 ) -> User:
     if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
+        )
 
     payload = decode_token(token)
-    
+
     if not payload or payload.get("type") != "access":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired access token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token",
+        )
 
     user_id_str = payload.get("sub")
     if not user_id_str:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token payload invalid")
-        
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token payload invalid"
+        )
+
     try:
         user_id = uuid.UUID(user_id_str)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user ID format")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user ID format"
+        )
 
     statement = select(User).where(User.id == user_id)
     user = session.exec(statement).first()
 
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-        
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
+
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
+        )
 
     return user
+
 
 def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
     """Dependency to ensure a logged-in user has admin privileges."""
     if current_user.role != "admin":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail="You do not have permission to perform this action."
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to perform this action.",
         )
     return current_user
