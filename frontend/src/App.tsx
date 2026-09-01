@@ -8,17 +8,31 @@ import { RecoverAccountPage } from "./pages/RecoverAccount.tsx";
 import { DashboardPage } from "./pages/Dashboard.tsx";
 import { PageTransition } from "./components/ui/page-transition";
 import { useAuthStore } from "./store/auth";
+import { useEffect } from "react";
 
 // A simple component to protect private routes
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const checkAuth = useAuthStore((state) => state.checkAuth);
 
-  // If not authenticated, redirect to login
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  // Show a blank screen or loading spinner while checking the cookie
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        Loading session...
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // If authenticated, render content (e.g., Dashboard)
   return <>{children}</>;
 }
 
@@ -81,7 +95,9 @@ function App() {
           path="/dashboard"
           element={
             <PrivateRoute>
-              <DashboardPage />
+              <PageTransition>
+                <DashboardPage />
+              </PageTransition>
             </PrivateRoute>
           }
         />
