@@ -77,14 +77,13 @@ def register_user(
 
     except IntegrityError:
         session.rollback()
-        background_tasks.add_task(
-            log_activity,
-            None,
-            "REGISTER_FAILED_DUPLICATE",
-            "POST",
-            "/users/register",
-            request.client.host,
-            400,
+        log_activity(
+            user_id=None,
+            action="REGISTER_FAILED",
+            method="POST",
+            path="/users/register",
+            ip=request.client.host,
+            status=400,
         )
 
         existing_user = session.exec(
@@ -115,26 +114,24 @@ def login(
     user = session.exec(statement).first()
 
     if not user or not verify_password(login_data.password, user.hashed_password):
-        background_tasks.add_task(
-            log_activity,
-            None,
-            "LOGIN_FAILED_CREDENTIALS",
-            "POST",
-            "/users/login",
-            request.client.host,
-            401,
+        log_activity(
+            user_id=None,
+            action="LOGIN_FAILED_CREDENTIALS",
+            method="POST",
+            path="/users/login",
+            ip=request.client.host,
+            status=401,
         )
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
     if not user.is_active:
-        background_tasks.add_task(
-            log_activity,
-            user.id,
-            "LOGIN_FAILED_INACTIVE",
-            "POST",
-            "/users/login",
-            request.client.host,
-            403,
+        log_activity(
+            user_id=None,
+            action="LOGIN_FAILED_INACTIVE",
+            method="POST",
+            path="/users/login",
+            ip=request.client.host,
+            status=403,
         )
         raise HTTPException(
             status_code=403, detail="This account has been deactivated."
@@ -185,24 +182,43 @@ def refresh_session(
     session: Session = Depends(get_session),
 ):
     if not refresh_token:
+        log_activity(
+            user_id=None,
+            action="REFRESH_FAILED_MISSING_TOKEN",
+            method="POST",
+            path="/users/refresh",
+            ip=request.client.host,
+            status=401,
+        )
         raise HTTPException(status_code=401, detail="Refresh token missing")
 
     payload = decode_token(refresh_token)
     if not payload or payload.get("type") != "refresh":
+        log_activity(
+            user_id=None,
+            action="REFRESH_FAILED_INVALID_TOKEN",
+            method="POST",
+            path="/users/refresh",
+            ip=request.client.host,
+            status=401,
+        )
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-    user_id = uuid.UUID(payload.get("sub"))
+    try:
+        user_id = uuid.UUID(payload.get("sub"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
     user = session.exec(select(User).where(User.id == user_id)).first()
 
     if not user or not user.is_active:
-        background_tasks.add_task(
-            log_activity,
-            user_id,
-            "REFRESH_FAILED_INACTIVE",
-            "POST",
-            "/users/refresh",
-            request.client.host,
-            401,
+        log_activity(
+            user_id=user_id,
+            action="REFRESH_FAILED_INACTIVE",
+            method="POST",
+            path="/users/refresh",
+            ip=request.client.host,
+            status=401,
         )
         raise HTTPException(
             status_code=401, detail="User account is inactive or deleted"
@@ -340,7 +356,6 @@ def update_my_profile(
     """
     # 1. Security Verification: Check current password
     if not verify_password(user_update.current_password, current_user.hashed_password):
-        # Sync log for failure
         log_activity(
             current_user.id,
             "PROFILE_UPDATE_FAILED_AUTH",
@@ -457,14 +472,13 @@ def reset_password(
 ):
     payload = decode_token(token)
     if not payload or payload.get("type") != "password_reset":
-        background_tasks.add_task(
-            log_activity,
-            None,
-            "RESET_PASSWORD_FAILED_TOKEN",
-            "POST",
-            "/users/reset-password",
-            request.client.host,
-            400,
+        log_activity(
+            user_id=None,
+            action="RESET_PASSWORD_FAILED_TOKEN",
+            method="POST",
+            path="/users/reset-password",
+            ip=request.client.host,
+            status=400,
         )
         raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
 
